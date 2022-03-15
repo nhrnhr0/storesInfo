@@ -32,7 +32,9 @@ DATA_UPLOAD_MAX_NUMBER_FIELDS = 10240
 
 INSTALLED_APPS = [
     'advanced_filters',
+    'proxy',
     'core',
+    
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

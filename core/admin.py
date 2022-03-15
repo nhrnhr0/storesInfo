@@ -44,6 +44,11 @@ class EasyPageAdmin(AdminAdvancedFiltersMixin, admin.ModelAdmin):
     search_fields = ['name', 'url']
     list_display = ('id', 'name', 'page_id', 'hasData', 'url',)
     advanced_filter_fields = ('name', 'url')
+    actions = ('load_page_data_to_empty_places',)
+    def load_page_data_to_empty_places(self, request, queryset):
+        for page in queryset:
+            if page.hasData == False:
+                page.easy_data_request()
 admin.site.register(EasyPage, EasyPageAdmin)
 
 class EasyListAdmin(AdminAdvancedFiltersMixin, admin.ModelAdmin):

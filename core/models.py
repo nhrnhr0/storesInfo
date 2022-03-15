@@ -1,5 +1,7 @@
+from decimal import Decimal
 import json
 from django.db import models
+from proxy.functions import send_with_random_proxy
 from Locs.utils import gma_get_place_detail
 from bs4 import BeautifulSoup
 import requests
@@ -122,9 +124,52 @@ class EasyPage(models.Model):
     address = models.CharField(max_length=200, blank=True, null=True)
     bestsubcat = models.CharField(max_length=200, blank=True, null=True)
     logo = models.CharField(max_length=200, blank=True, null=True)
+    infoBox = models.TextField(blank=True, null=True)
     hasData = models.BooleanField(default=False)
+    html = models.TextField(blank=True, null=True)
     def __str__(self):
         return self.name
+    
+    def easy_data_request(self):
+        if self.url is not None and self.url != '':
+            url = self.url
+        else:
+            url = 'https://easy.co.il/page/' + self.page_id
+        response = requests.get(url) #send_with_random_proxy(url)
+        time.sleep(2.3)
+        if response.status_code == 200:
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            self.html = soup.prettify()
+            self.name = soup.find('h1', {'class':'biz-title'}).text
+            phoneEl = soup.find('span', {'id': 'action-phone-label'})
+            if phoneEl:
+                self.phone = phoneEl.text
+                
+            
+            addressEl = soup.find('span', {'class': 'biz-address-text'})
+            if addressEl:
+                self.address = addressEl.text.replace('\n', '').strip()
+            
+            logoEl = soup.find('div', {'class': 'biz-logo'})
+            if logoEl:
+                self.logo = logoEl.find('img')['src']
+            mapEl = soup.find('div', {'class': 'map-image'})
+            if mapEl:
+                staticmap_src = mapEl.find('img')['src'] # https://easy.co.il/n/getStaticMapByCoord?lat=32.075987&lng=34.902733&lang=he&zoom=13
+                # extract lat and lng from staticmap_src
+                lat = staticmap_src.split('lat=')[1].split('&')[0]
+                lng = staticmap_src.split('lng=')[1].split('&')[0]
+                self.lat = Decimal(lat)
+                self.lng = Decimal(lng)
+            self.url = url
+            infoBoxEl = soup.find('div', {'class': 'info-box'})
+            if infoBoxEl:
+                self.infoBox = infoBoxEl.prettify()
+            self.hasData = True
+            #self.hasData = True
+            self.save()
+            print(self.name, self.phone, self.address, self.logo)
 
 # c: 234 | https://easy.co.il/list/Carpenters | נגרים ונגריות
 # c: 4935 | https://easy.co.il/list/Garages | מוסכים
@@ -156,11 +201,13 @@ class EasyList(models.Model):
     rad = models.IntegerField(default=2000)
     categories = models.ManyToManyField(to='EasyCategory', blank=True)
     pages = models.ManyToManyField(to='EasyPage', blank=True)
+    # Using Proxy {'https': '190.90.83.225:999'}
     
     def __str__(self):
         return self.name
     # lang: he
     def load_list(self):
+        request_type = "get"
         #requests.get()
             # center: 30.87438, 34.79305
             # example: https://easy.co.il/json/list.json?v=1.2&c=17755&listpage=1&lat=0&lng=0&rad=212478
@@ -169,9 +216,11 @@ class EasyList(models.Model):
             hasNext = True
             i = 1
             pages = []
-            headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+            #headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
             url = 'https://easy.co.il/json/list.json?v=1.2&c=' + category.c + '&listpage=1&lat=' + str(self.lat) + '&lng=' + str(self.lng) + '&rad=' + str(self.rad)
-            response = requests.get(url,headers=headers)
+            #response = requests.get(url,headers=headers)
+            #response = proxy.Proxy_Request(url=url, request_type=request_type)
+            response = send_with_random_proxy(url=url, request_type=request_type)
             data = response.json()
             if data.get('error'):
                 print('ERROR ==> ', url)
